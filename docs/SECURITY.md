@@ -1,25 +1,19 @@
-# Security notes
+# Security
 
-## Threat model
+## Threat Model and Safeguards
 
-`io.github.trysac:jdbc-shard-router` is a pure library without I/O. The main risks are:
+### Defended
 
-- **Supply chain**: a compromised dependency, Maven plugin or CI action. Mitigation: standard
-  library only, every plugin and dependency pinned to an exact version in `pom.xml`, OSV-Scanner
-  over every artifact Maven resolves and over `pom.xml` in the gates, Dependabot weekly updates,
-  actions pinned by commit SHA, minimal workflow permissions.
-- **Leaked secrets**: tokens committed by mistake. Mitigation: `gitleaks` runs in the local gates
-  and in CI; `.env` files are git-ignored.
-- **Insecure code**: command injection, unsafe deserialization, disabled TLS verification.
-  Mitigation: Error Prone and javac `-Xlint:all` with warnings as errors, and the factory's Semgrep
-  rules (`.semgrep/factory-rules.yml`, `nosemgrep` ignored); fix the code instead of silencing it.
-- **Untrusted input**: callers may pass hostile strings. Mitigation: validate input and throw
-  explicit, documented exceptions; never deserialize untrusted bytes with `ObjectInputStream`;
-  never start a shell with untrusted data.
+- **SQL Injection**: The parser prohibits literals in `WHERE` and `SET` clauses. Every value must be bound via `?` placeholders, ensuring strictly parameterized queries.
+- **Memory/Resource Bounds**: 
+  - SQL inputs are capped at 16,384 characters (`sql_too_long`).
+  - Merged query results are capped at `maxRows` (default 100,000), preventing heap exhaustion during merge operations (`too_many_rows`).
+- **Leakage Prevention**: 
+  - SQL statements and parameters are never logged.
+  - Diagnostic `RoutedEvent` records contain only non-sensitive metrics (`kind`, `shardCount`, `durationNanos`).
+  - Exception messages are sanitized; `shard_failure` messages contain only the shard index and SQLState, with message content truncated to 200 characters.
 
-## Publishing
+### Not Defended
 
-Releases are git tags; publishing to Maven Central needs a namespace account and a signing key,
-which are never stored in the repository.
-
-To report a vulnerability, see [SECURITY.md](../SECURITY.md).
+- **Cross-shard Integrity**: This library executes statements per-shard. It does not provide global ACID transactions or two-phase commit across shards. If an `UPDATE` impacts multiple shards (though forbidden for keys), consistency is not guaranteed by this library.
+- **Logic/Business Layer Attacks**: Applications must still perform their own authorization and business logic validation.

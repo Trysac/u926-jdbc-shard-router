@@ -9,4 +9,5 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Added `ShardRouter`, `JumpHash`, `ResultTable`, `RoutedEvent`, and `ShardException` for routing JDBC queries and updates across shards with Jump Consistent Hashing and scatter-gather result merging.
 - Initial project structure from the factory utility template.
